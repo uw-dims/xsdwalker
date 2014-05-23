@@ -123,6 +123,12 @@ public class XSDWalker {
 			} else if( !f.exists() ) {
 				urls.add( new URL( arg ) );
 			} else if( f.isFile() ) {
+				/*
+				  DO NOT include as an input the very artifact
+				  we are trying to produce on output
+				*/
+				if( f.getName().indexOf( "uber" ) > -1 )
+					continue;
 				files.add( f );
 			} else if( f.isDirectory() ) {
 				dirs.add( f );
@@ -131,8 +137,12 @@ public class XSDWalker {
 
 		log.info( "Dirs : " + dirs );
 		log.info( "Files: " + files );
-		log.info( "URLs: " + urls );
-		
+		log.info( "URLs: "  + urls );
+
+		/*
+		  No output name offered via a -u option, so we pick one from
+		  the input dirs/files/urls
+		*/
 		if( uber == null ) {
 			if( false ) {
 			} else if( !dirs.isEmpty() ) {
@@ -154,7 +164,7 @@ public class XSDWalker {
 		}
 
 		File uberFile = new File( uber + ".uber.xsd" );
-		log.info( "Output file: " + uberFile );
+		log.info( "Uber schema: " + uberFile );
 
 		File reportFile = new File( uber + ".txt" );
 		reportFile.delete();
@@ -210,8 +220,10 @@ public class XSDWalker {
 		}
 		log.info( "Found " + allURLs.size() + " .xsd files/urls" );
 		
-		if( dryRun )
+		if( dryRun ) {
+			log.info( "Skipping processing" );
 			return;
+		}
 
 		XSDWalker w = new XSDWalker();
 		Collection<Node> ns = w.process( allURLs );
