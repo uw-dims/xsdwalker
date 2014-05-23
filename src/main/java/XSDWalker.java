@@ -133,19 +133,24 @@ public class XSDWalker {
 		log.info( "Files: " + files );
 		log.info( "URLs: " + urls );
 		
-		File mainDir = null;
-		File mainFile = null;
-
 		if( uber == null ) {
 			if( false ) {
-			} else if( dirs.size() == 1 ) {
-				mainDir = dirs.get(0);
-				uber = mainDir.getName();
-			} else if( files.size() == 1 ) {
-				mainFile = files.get(0);
-				uber = mainFile.getName();
+			} else if( !dirs.isEmpty() ) {
+				uber = dirs.get(0).getName();
+			} else if( !files.isEmpty() ) {
+				String s = files.get(0).getName();
+				if( s.endsWith( ".xsd" ) ) {
+					s = s.substring( 0, s.length() - ".xsd".length() );
+				}
+				uber = s;
+			} else if( !urls.isEmpty() ) {
+				String s = urls.get(0).toString();
+				if( s.endsWith( ".xsd" ) ) {
+					s = s.substring( 0, s.length() - ".xsd".length() );
+				}
+				s = s.substring( s.lastIndexOf( "/" ) + 1);
+				uber = s;
 			}
-
 		}
 
 		File uberFile = new File( uber + ".uber.xsd" );
@@ -210,16 +215,20 @@ public class XSDWalker {
 
 		XSDWalker w = new XSDWalker();
 		Collection<Node> ns = w.process( allURLs );
+		System.out.println( "Nodes: " + ns.size() );
+		if( ns.isEmpty() )
+			return;
+
 		if( verbose ) {
-			System.out.println( "Nodes: " + ns.size() );
+			List<Node> toSort = new ArrayList<Node>( ns );
+			Collections.sort( toSort );
+			for( Node n : toSort )
+				System.out.println( n.location );
 		}
 		
 		XSDWalker.checkNamespaceLinkage( ns );
 		XSDWalker.report( ns, reportFile );
-
-		if( uber != null ) {
-			XSDWalker.toUberXSD( ns, "xs", uberFile );
-		}
+		XSDWalker.toUberXSD( ns, "xs", uberFile );
 	}
 
 	public XSDWalker() throws Exception {
@@ -268,7 +277,15 @@ public class XSDWalker {
 
 		log.info( indent + "Visiting " + u );
 		
-		SchemaInfo si = p.parse( u.toString() );
+		SchemaInfo si = null;
+
+		try {
+			si = p.parse( u.toString() );
+		} catch( Exception e ) {
+			log.warn( "Parse failure: " + u );
+			return;
+		}
+		
 		log.info( indent + "TNS " + si.targetNamespace );
 
 		URL uv = byTargetNamespace.get( si.targetNamespace );
