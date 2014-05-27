@@ -21,13 +21,13 @@ import org.apache.log4j.Logger;
 /**
  * @author Stuart Maclean
  *
- * XSDWalker: walk a tree of XML schema documents (.xsd), producing
+ * XSDWalker: walk a graph of XML schema documents (.xsd), producing
  *
  * (a) An 'uber' xsd file which can be passed directly to xjc.
  *
  * (b) A report file ($uber.txt) documenting the (import) relationships
  * between both the .xsd names on cmd line and all the ones found in
- * the traversal.
+ * the graph traversal.
  *
  * (c) Also logs (log4j) to ./xsdwalker.log
  *
@@ -36,15 +36,14 @@ import org.apache.log4j.Logger;
  *
  *
  * Options:
-
- * -e <arg>   exclude any file/directory matching the arg
-
+ *
+ * -e <arg>   exclude any file/directory matching the arg. Can be used 2+ times
+ *
  * -n         dryrun, show the .xsd set but do not visit any.
-
- * -u <arg> name of uber .xsd output, defaults to dir name if just
-    single dir supplied on input, or file name if just a single file
-    given.
-
+ *
+ * -u <arg> name of uber .xsd output, defaults to first input name
+ * (file/dir/url) if not supplied.
+ *
  * -v         verbose
  * 
  */
@@ -261,7 +260,7 @@ public class XSDWalker {
 	
 	/**
 	 * @return A graph of nodes created by adding all the nodes in
-	 * 'us' and by following the import paths of each node in fs,
+	 * 'us' and by following the import paths of each node in 'us',
 	 * recursively.
 	 */
 	public Collection<Node> process( Collection<URL> us ) throws Exception {
@@ -277,7 +276,8 @@ public class XSDWalker {
 	/**
 	 * Convenience method, e.g by test cases.  Permits file lists to
 	 * be specified in place of url lists.  Does the conversions then
-	 * delegates
+	 * delegates.  Cannot have signature process( Collection<File> )
+	 * due to type erasure, pah!
 	 */
 	public Collection<Node> processFiles( Collection<File> fs )
 		throws Exception {
@@ -290,7 +290,8 @@ public class XSDWalker {
 	}
 	
 	private void visit( URL u, Map<String,Node> nodes,
-						Set<String> visited, Map<String,URL> byTargetNamespace,
+						Set<String> visited,
+						Map<String,URL> byTargetNamespace,
 						String indent )
 		throws Exception {
 
@@ -318,6 +319,10 @@ public class XSDWalker {
 			log.warn( indent + "Already seen " + si.targetNamespace +
 					  " in " + uv );
 			//			return;
+			/*
+			  LOOK: isn't this a big deal, to come across an already-seen
+			  target namespace a second (third+?) time ?
+			*/
 		}
 		
 		byTargetNamespace.put( si.targetNamespace, u );
@@ -325,6 +330,7 @@ public class XSDWalker {
 		Node n = nodes.get( u.toString() );
 		if( n == null ) {
 			//			System.out.println( "Adding " + u );
+			// LOOK: Node should take URL itself, NOT string...
 			n = new Node( u.toString() );
 			nodes.put( n.location, n );
 		}
@@ -428,6 +434,7 @@ public class XSDWalker {
 		StringWriter sw = new StringWriter();
 		PrintWriter pw = new PrintWriter( sw );
 		for( Node n : ns ) {
+			// LOOK: printing xml by hand, pah! Use what?  A DOM?
 			pw.println( "  <" + xsdPrefix +
 						":import" +
 						" namespace=\"" + n.targetNamespace + "\"" +
@@ -456,6 +463,7 @@ public class XSDWalker {
 		  attributeFormDefault="unqualified" 
 		  version="2.0">
 		*/
+		// LOOK: printing xml by hand, pah! Use what?  A DOM?
 		String root = "<" + xsdPrefix + ":schema " +
 			" xmlns:" + xsdPrefix + "=\"http://www.w3.org/2001/XMLSchema\"" +
 			" targetNamespace=\"" + outFile.getName() + "\"" +
@@ -544,8 +552,6 @@ public class XSDWalker {
 		pw.close();
 	}
 		
-
-	
 	private boolean haveTargetNamespace( Collection<Node> ns, String tns ) {
 		for( Node n : ns )
 			/*
