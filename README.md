@@ -17,7 +17,8 @@ which produces ./stix_v1.1.1.uber.xsd (and a report file
 % xjc stix_v1.1.1.uber.xsd
 
 To exclude subsets of .xsd files from the uber xsd file, use the -e
-option.  An example, relating again to the STIX .xsd bundle:
+option (can be used 2+ times).  An example, relating again to the STIX
+.xsd bundle:
 
 % xsdwalker.sh [-v] /path/to/stix_v1.1.1/ -e /path/to/stix_v1.1.1/extensions
 
