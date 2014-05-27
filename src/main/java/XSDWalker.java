@@ -65,8 +65,11 @@ public class XSDWalker {
 		Options os = new Options();
 		os.addOption( "n", false,
 					  "dryrun, show the .xsd set but do not visit any." );
-		os.addOption( "e", true,
-					  "exclude any file/directory" );
+		Option excludes = OptionBuilder.
+			hasArgs().
+			withDescription( "exclude file/directory matching pattern(s)" ).
+			create( 'e' );
+		os.addOption( excludes );
 		os.addOption( "u", true,
 					  "name of uber .xsd output" );
 		os.addOption( "v", false, "verbose" );
@@ -90,13 +93,17 @@ public class XSDWalker {
 		final List<File> excludeFiles = new ArrayList<File>();
 		final List<File> excludeDirs = new ArrayList<File>();
 		if( cl.hasOption( "e" ) ) {
-			String s = cl.getOptionValue( "e" );
-			File exclude = new File( s );
-			if( false ) {
-			} else if( exclude.isFile() ) {
-				excludeFiles.add( exclude );
-			} else if( exclude.isDirectory() ) {
-				excludeDirs.add( exclude );
+			log.info( "Found excludes" );
+			String[] ss = cl.getOptionValues( "e" );
+			for( String s : ss ) {
+			log.info( "Found exclude " + s );
+				File exclude = new File( s );
+				if( false ) {
+				} else if( exclude.isFile() ) {
+					excludeFiles.add( exclude );
+				} else if( exclude.isDirectory() ) {
+					excludeDirs.add( exclude );
+				}
 			}
 		}
 
@@ -178,6 +185,10 @@ public class XSDWalker {
 			IOFileFilter ff1 = new IOFileFilter() {
 					public boolean accept( File file ) {
 						// this is the method called for files...
+						for( File ex : excludeFiles )  {
+							if( file.getPath().contains( ex.getPath() ) )
+								return false;
+						}
 						return file.getName().endsWith( ".xsd" );
 					}
 					public boolean accept( File dir, String name ) {
