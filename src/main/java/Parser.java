@@ -14,19 +14,27 @@ import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+/**
+ * @author Stuart Maclean
+ *
+ * Parser class supporting the XSDWalker main class. Given a URL
+ * (either file: or http:) representing an xsd XMLSchema file, scan
+ * the content and extract a pair (which we name a SchemaInfo):
+ *
+ * 1 The target namespace, an attribute of the outermost <schema>
+ * element itself.
+ *
+ * 2 A list of 'ImportInfo' objects, derived via extraction of all
+ * <import> elements.
+ *
+ * @see SchemaInfo
+ * @see ImportInfo
+ */
 public class Parser {
-
-	public static void main( String[] args ) throws Exception {
-
-		Parser p = new Parser();
-		File in = new File( args[0] );
-		SchemaInfo si = p.parse( in );
-		System.out.println( "TNS: " + si.targetNamespace );
-		System.out.println( "Imports: " + si.getImports() );
-	}
 	
 	public Parser() throws Exception {
 		DocumentBuilderFactory fac = DocumentBuilderFactory.newInstance();
+		// wah, without this it all fails!
 		fac.setNamespaceAware( true );
 		bob = fac.newDocumentBuilder();
 		XPathFactory xpf = XPathFactory.newInstance();
@@ -37,6 +45,7 @@ public class Parser {
 					if( prefix == null ) {
 						throw new IllegalArgumentException( "No prefix" );
 					} else if( prefix.equals( "xs" ) ) {
+						// LOOK: do we need other prefixes? xsd?
 						return "http://www.w3.org/2001/XMLSchema";
 					} else {
 						return XMLConstants.NULL_NS_URI;
@@ -68,7 +77,7 @@ public class Parser {
 
 	SchemaInfo parse( Document d ) throws Exception {
 	
-		String expr1 = "xs:schema/@targetNamespace";
+		String expr1 = "/xs:schema/@targetNamespace";
 		String tns = xp.evaluate( expr1, d );
 		
 		SchemaInfo result = new SchemaInfo( tns );
@@ -89,9 +98,17 @@ public class Parser {
 		return result;
 	}
 
+	// Used in development, not used in anger, use XSDWalker.main
+	public static void main( String[] args ) throws Exception {
+		Parser p = new Parser();
+		File in = new File( args[0] );
+		SchemaInfo si = p.parse( in );
+		System.out.println( "TNS: " + si.targetNamespace );
+		System.out.println( "Imports: " + si.getImports() );
+	}
+
 	private final DocumentBuilder bob;
 	private final XPath xp;
-
 }
 
 // eof
