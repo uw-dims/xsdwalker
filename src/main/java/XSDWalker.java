@@ -74,7 +74,7 @@ public class XSDWalker {
 					  "name of uber .xsd output" );
 		os.addOption( "v", false, "verbose" );
 		final String USAGE =
-			"[-n] [-e file/dir] [-u uber] [-v] (file|dir|url)+";
+			"[-e file/dir]* [-n] [-u uber] [-v] (file|dir|url)+";
 		final String HEADER = "";
 		final String FOOTER = "";
 		
