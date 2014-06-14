@@ -62,6 +62,8 @@ public class XSDWalker {
 	public static void main( String[] args ) throws Exception {
 
 		Options os = new Options();
+		os.addOption( "g", false,
+					  "produce edges file, used for graphing." );
 		os.addOption( "n", false,
 					  "dryrun, show the .xsd set but do not visit any." );
 		Option excludes = OptionBuilder.
@@ -73,7 +75,7 @@ public class XSDWalker {
 					  "name of uber .xsd output" );
 		os.addOption( "v", false, "verbose" );
 		final String USAGE =
-			"[-e file/dir]* [-n] [-u uber] [-v] (file|dir|url)+";
+			"[-e file/dir]* [-g] [-n] [-u uber] [-v] (file|dir|url)+";
 		final String HEADER = "";
 		final String FOOTER = "";
 		
@@ -88,6 +90,7 @@ public class XSDWalker {
 		}
 		boolean dryRun = cl.hasOption( "n" );
 		boolean verbose = cl.hasOption( "v" );
+		boolean writeGraphFile = cl.hasOption( "g" );
 
 		final List<File> excludeFiles = new ArrayList<File>();
 		final List<File> excludeDirs = new ArrayList<File>();
@@ -251,11 +254,25 @@ public class XSDWalker {
 		XSDWalker.checkNamespaceLinkage( ns );
 		XSDWalker.report( ns, reportFile );
 		XSDWalker.toUberXSD( ns, "xs", uberFile );
-	}
 
+		if( writeGraphFile ) {
+			File f = new File( uber + ".edges" );
+			PrintWriter pw = new PrintWriter( new FileWriter( f ) );
+			for( Node n : ns ) {
+				for( Edge e : n.outs ) {
+					pw.println( e.source.location + "," +
+								e.source.targetNamespace + "," +
+								e.namespace + "," +
+								e.target.location + "," +
+								e.target.targetNamespace );
+				}
+			}
+			pw.close();
+		}
+	}
+	
 	public XSDWalker() throws Exception {
 		p = new Parser();
-		//		log = Logger.getLogger( getClass() );
 	}
 	
 	/**
