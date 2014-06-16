@@ -38,7 +38,6 @@ public class STIXTest extends junit.framework.TestCase {
 		
 		Collection<XSDWalker.Node> ns = w.processFiles( fs );
 
-		XSDWalker.checkNamespaceLinkage( ns );
 		XSDWalker.report( ns,  new File( dirName + ".txt" ) );
 		
 		

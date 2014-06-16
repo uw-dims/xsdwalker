@@ -23,7 +23,9 @@ import org.apache.log4j.Logger;
  *
  * XSDWalker: walk a graph of XML schema documents (.xsd), producing
  *
- * (a) An 'uber' xsd file which can be passed directly to xjc.
+ * (a) An 'uber' xsd file which can be passed directly to xjc.  This
+ * uber file consists solely of xml schema import statements,
+ * identifiying just the xsd files for xjc to scan.
  *
  * (b) A report file ($uber.txt) documenting the (import) relationships
  * between both the .xsd names on cmd line and all the ones found in
@@ -32,7 +34,8 @@ import org.apache.log4j.Logger;
  * (c) Also logs (log4j) to ./xsdwalker.log
  *
  * Input .xsds can be directories (then scanned for .xsd files
- * recursively), individual file names, and urls (including http:// ones)
+ * recursively), individual file names, and urls (including http://
+ * ones)
  *
  *
  * Options:
@@ -45,6 +48,11 @@ import org.apache.log4j.Logger;
  * (file/dir/url) if not supplied.
  *
  * -v         verbose
+ *
+ * -g produce a 'graph file', a simple text file listing all nodes and
+ * edges in the resultant 'graph'.  We can then use e.g. yfiles or
+ * some other graphing package to visualize the node set.  The output
+ * graph file name is $uber.graph.
  * 
  */
 
@@ -250,21 +258,30 @@ public class XSDWalker {
 			for( Node n : toSort )
 				System.out.println( n.location );
 		}
+
+		//		resolve( ns );
+
+		Collection<Node> leaves = leafNodes( ns );
+		System.out.println( "Leaf Nodes: " + leaves.size() );
 		
-		XSDWalker.checkNamespaceLinkage( ns );
+		Collection<Node> remotes = remoteNodes( ns );
+		System.out.println( "Remote Nodes: " + remotes.size() );
+		
+		//XSDWalker.checkNamespaceLinkage( ns );
 		XSDWalker.report( ns, reportFile );
 		XSDWalker.toUberXSD( ns, "xs", uberFile );
 
 		if( writeGraphFile ) {
-			File f = new File( uber + ".edges" );
+			File f = new File( uber + ".graph" );
 			PrintWriter pw = new PrintWriter( new FileWriter( f ) );
 			for( Node n : ns ) {
-				for( Edge e : n.outs ) {
-					pw.println( e.source.location + "," +
-								e.source.targetNamespace + "," +
-								e.namespace + "," +
-								e.target.location + "," +
-								e.target.targetNamespace );
+				pw.println( "N," + n.location.toString() + "," +
+							n.targetNamespace );
+			}
+			for( Node n : ns ) {
+				for( Node out : n.outs ) {
+					pw.println( "E," + n.location.toString() + "," +
+								out.location.toString() );
 				}
 			}
 			pw.close();
@@ -282,11 +299,11 @@ public class XSDWalker {
 	 */
 	public Collection<Node> process( Collection<URL> us ) throws Exception {
 		Map<String,Node> nodes = new HashMap<String,Node>();
-		Set<String> visited = new HashSet<String>();
-		Map<String,URL> byTargetNamespace = new HashMap<String,URL>();
+		//		Set<String> visited = new HashSet<String>();
+		//		Map<String,URL> byTargetNamespace = new HashMap<String,URL>();
 
 		for( URL u : us )
-			visit( u, nodes, visited, byTargetNamespace, "" );
+			visit( u, nodes, null, null, "" );
 		return nodes.values();
 	}
 
@@ -306,15 +323,12 @@ public class XSDWalker {
 		return process( us );
 	}
 	
-	private void visit( URL u, Map<String,Node> nodes,
-						Set<String> visited,
-						Map<String,URL> byTargetNamespace,
-						String indent )
-		throws Exception {
+	private void visit( URL u, Map<String,Node> result,
+						Node referrer, String referringNamespace,
+						String indent )	throws Exception {
 
-		if( visited.contains( u.toString() ) )
+		if( result.containsKey( u.toString() ) )
 			return;
-		visited.add( u.toString() );
 
 		log.info( indent + "Visiting " + u );
 		
@@ -328,33 +342,24 @@ public class XSDWalker {
 		}
 		
 		log.info( indent + "TNS " + si.targetNamespace );
+		Node n = new Node( u, si.targetNamespace );
+		result.put( u.toString(), n );
 
-		URL uv = byTargetNamespace.get( si.targetNamespace );
-		if( uv == null ) {
-			byTargetNamespace.put( si.targetNamespace, u );
-		} else {
-			log.warn( indent + "Already seen " + si.targetNamespace +
-					  " in " + uv );
-			//			return;
-			/*
-			  LOOK: isn't this a big deal, to come across an already-seen
-			  target namespace a second (third+?) time ?
-			*/
+		// build an incoming edge if namespace linkage matches...
+		if( referrer != null ) {
+			if( si.targetNamespace.equals( referringNamespace ) ) {
+				referrer.outs.add( n );
+				n.ins.add( referrer );
+			} else {
+				log.warn( "Namespace mismatch: actual " + si.targetNamespace+
+						  ", expected " + referringNamespace );
+			}
 		}
 		
-		byTargetNamespace.put( si.targetNamespace, u );
-		
-		Node n = nodes.get( u.toString() );
-		if( n == null ) {
-			//			System.out.println( "Adding " + u );
-			// LOOK: Node should take URL itself, NOT string...
-			n = new Node( u.toString() );
-			nodes.put( n.location, n );
-		}
-		n.targetNamespace = si.targetNamespace;
 		for( ImportInfo ii : si.getImports() ) {
+			log.info( indent + "Import " + ii );
+			
 			String s = ii.schemaLocation;
-			//			log.info( indent + "Import " + s );
 			URL u2;
 			if( false ) {
 			} else if( s.startsWith( "http:" ) ) {
@@ -371,26 +376,22 @@ public class XSDWalker {
 				// is relative, to u??
 				u2 = new URL( u, s );
 			}
-			log.info( indent + "Import " + u2.toString() );
-			Node tgt = nodes.get( u2.toString() );
+
+			Node tgt = result.get( u2.toString() );
 			if( tgt == null ) {
-				tgt = new Node( u2.toString() );
-				nodes.put( tgt.location, tgt );
+				visit( u2, result, n, ii.namespace, indent + " " );
+			} else {
+				// build an outgoing edge if namespace linkage matches...
+				if( tgt.targetNamespace.equals( ii.namespace ) ) {
+					n.outs.add( tgt );
+					tgt.ins.add( n );
+				} else {
+					log.warn( "Namespace mismatch: actual " +
+							  tgt.targetNamespace+
+							  ", expected " + ii.namespace );
+				}
 			}
-			Edge e = new Edge( n, tgt, ii.namespace );
-			log.info( indent + "Edge " + n.location + " -> " + tgt.location );
-			n.outs.add( e );
-			tgt.ins.add( e );
-			visit( u2, nodes, visited, byTargetNamespace, indent + " " );
 		}
-	}
-	
-	static List<String> locations( Collection<Node> ns ) {
-		List<String> result = new ArrayList<String>();
-		for( Node n : ns ) {
-			result.add( n.location );
-		}
-		return result;
 	}
 
 	/**
@@ -412,7 +413,7 @@ public class XSDWalker {
 	static Collection<Node> remoteNodes( Collection<Node> ns ) {
 		List<Node> result = new ArrayList<Node>();
 		for( Node n : ns ) {
-			if( n.location.startsWith( "http:" ) )
+			if( n.location.getProtocol().startsWith( "http" ) )
 				result.add( n );
 		}
 		return result;
@@ -426,7 +427,7 @@ public class XSDWalker {
 											Collection<Node> remotes ) {
 		List<Node> result = new ArrayList<Node>();
 		for( Node l : leaves ) {
-			if( l.location.startsWith( "http:" ) ) {
+			if( l.location.toString().startsWith( "http:" ) ) {
 				result.add( l );
 				continue;
 			}
@@ -498,32 +499,21 @@ public class XSDWalker {
 	static List<String> leafNodeLocations( Collection<Node> ns ) {
 		List<String> result = new ArrayList<String>();
 		for( Node n : ns ) {
-			if( n.ins.isEmpty() )
-				result.add( n.location );
+			if( n.ins.isEmpty() ) {
+				//	result.add( n.location );
+			}
 		}
 		return result;
 	}
 
-	static void checkNamespaceLinkage( Collection<Node> ns ) {
-		for( Node n : ns ) {
-			for( Edge e : n.ins ) {
-				if( !e.namespace.equals( n.targetNamespace ) ) {
-					String msg = "N: " + n.location +
-						"(" + n.targetNamespace + ")" +
-						", E: " + e.namespace;
-					throw new IllegalStateException( msg );
-				}
-			}
-		}
-	}
 
-	static void reportHeirarchy( Collection<Node> ns, File output )
+	static void reportHierarchy( Collection<Node> ns, File output )
 		throws IOException {
 		List<Node> leaves = leafNodes( ns );
 		Collections.sort( leaves );
 		PrintWriter pw = new PrintWriter( new FileWriter( output, true ) );
 		for( XSDWalker.Node n : leaves ) {
-			String s = n.heirarchy();
+			String s = n.hierarchy();
 			pw.println( s );
 		}
 		pw.close();
@@ -549,7 +539,7 @@ public class XSDWalker {
 		pw.println();
 		pw.println( "Hierarchy: " );
 		for( XSDWalker.Node n : leaves ) {
-			String s = n.heirarchy();
+			String s = n.hierarchy();
 			pw.println( s );
 		}
 
@@ -580,13 +570,30 @@ public class XSDWalker {
 		return false;
 	}
 
+	/*
+	  static class Graph {
+		Graph() {
+			nodes = new ArrayList<Node>();
+			edges = new ArrayList<Edge>();
+		}
+		List<Node> nodes;
+		List<Edge> edges;
+	}
+	*/
+	
 	static class Node implements Comparable<Node> {
-		Node( String location ) {
+		Node( URL location, String tns ) {
 			this.location = location;
-			ins = new ArrayList<Edge>();
-			outs = new ArrayList<Edge>();
+			this.targetNamespace = tns;
+			imports = new ArrayList<ImportInfo>();
+			ins = new ArrayList<Node>();
+			outs = new ArrayList<Node>();
 		}
 
+		public void addImport( ImportInfo ii ) {
+			imports.add( ii );
+		}
+		
 		@Override
 		public int hashCode() {
 			return location.hashCode();
@@ -604,25 +611,27 @@ public class XSDWalker {
 
 		@Override
 		public int compareTo( Node o ) {
-			return this.location.compareTo( o.location );
+			URL u1 = this.location;
+			URL u2 = o.location;
+			return u1.toString().compareTo( u2.toString() );
 		}
 		
-		public String heirarchy() {
+		public String hierarchy() {
 			StringWriter sw = new StringWriter();
 			PrintWriter pw = new PrintWriter( sw );
 			Set<Node> visited = new HashSet<Node>();
-			heirarchy( pw, "", visited );
+			hierarchy( pw, "", visited );
 			return sw.toString();
 		}
 
-		public void heirarchy( PrintWriter pw, String indent,
+		public void hierarchy( PrintWriter pw, String indent,
 							   Set<Node> visited ) {
 			if( visited.contains( this ) )
 				return;
 			visited.add( this );
 			pw.println( indent + location );
-			for( Edge out : outs ) {
-				out.target.heirarchy( pw, indent + " ", visited );
+			for( Node tgt : outs ) {
+				tgt.hierarchy( pw, indent + " ", visited );
 			}
 		}
 		
@@ -632,9 +641,11 @@ public class XSDWalker {
 				ins.size() + "," + outs.size();
 		}
 		
-		final String location;
-		final List<Edge> ins, outs;
-		String targetNamespace;
+		final URL location;
+		final String targetNamespace;
+		final List<ImportInfo> imports;
+		final List<Node> ins, outs;
+		//		String targetNamespace;
 	}
 
 	static class Edge {

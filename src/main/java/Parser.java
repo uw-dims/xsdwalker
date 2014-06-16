@@ -34,7 +34,7 @@ public class Parser {
 	
 	public Parser() throws Exception {
 		DocumentBuilderFactory fac = DocumentBuilderFactory.newInstance();
-		// wah, without this it all fails!
+		// wah, without this 'namespace awareness setting' it all fails!
 		fac.setNamespaceAware( true );
 		bob = fac.newDocumentBuilder();
 		XPathFactory xpf = XPathFactory.newInstance();

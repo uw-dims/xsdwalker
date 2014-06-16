@@ -67,7 +67,6 @@ public class CyboxTest extends junit.framework.TestCase {
 		Collection<XSDWalker.Node> ns = w.processFiles( fs );
 
 
-		XSDWalker.checkNamespaceLinkage( ns );
 		XSDWalker.report( ns, reportFile );
 
 		File uber = new File( dir + ".uber.xsd" );
