@@ -243,6 +243,17 @@ public class XSDWalker {
 		
 		if( dryRun ) {
 			log.info( "Skipping processing" );
+			if( writeGraphFile ) {
+				// write just the nodes as given on input...
+				File f = new File( uber + ".nodes" );
+				log.info( "Writing nodes: " + f );
+				PrintWriter pw = new PrintWriter( new FileWriter( f ) );
+				String targetNamespace = "UNK";
+				for( URL u : allURLs ) {
+					pw.println( "N," + u.toString() + "," + targetNamespace );
+				}
+				pw.close();
+			}
 			return;
 		}
 
@@ -273,6 +284,7 @@ public class XSDWalker {
 
 		if( writeGraphFile ) {
 			File f = new File( uber + ".graph" );
+			log.info( "Writing graph: " + f );
 			PrintWriter pw = new PrintWriter( new FileWriter( f ) );
 			for( Node n : ns ) {
 				pw.println( "N," + n.location.toString() + "," +
@@ -299,8 +311,6 @@ public class XSDWalker {
 	 */
 	public Collection<Node> process( Collection<URL> us ) throws Exception {
 		Map<String,Node> nodes = new HashMap<String,Node>();
-		//		Set<String> visited = new HashSet<String>();
-		//		Map<String,URL> byTargetNamespace = new HashMap<String,URL>();
 
 		for( URL u : us )
 			visit( u, nodes, null, null, "" );
