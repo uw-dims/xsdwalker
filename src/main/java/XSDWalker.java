@@ -3,6 +3,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -230,7 +232,8 @@ public class XSDWalker {
 		List<URL> allURLs = new ArrayList<URL>();
 		allURLs.addAll( urls );
 		for( File f : allFiles ) {
-			URL u = f.getCanonicalFile().toURI().toURL();
+			URL u = f.toURI().toURL();
+			//			URL u = f.getCanonicalFile().toURI().toURL();
 			allURLs.add( u );
 		}
 
@@ -327,7 +330,8 @@ public class XSDWalker {
 		throws Exception {
 		List<URL> us = new ArrayList<URL>( fs.size() );
 		for( File f : fs ) {
-			URL u = f.getCanonicalFile().toURI().toURL();
+			//			URL u = f.getCanonicalFile().toURI().toURL();
+			URL u = f.toURI().toURL();
 			us.add( u );
 		}
 		return process( us );
@@ -454,19 +458,34 @@ public class XSDWalker {
 		return result;
 	}
 
+
 	/**
 	   <xs:import namespace="http://cybox.mitre.org/common-2"
 	   schemaLocation="http://cybox.mitre.org/XMLSchema/common/2.0/cybox_common.xsd"/>
 	*/
 	static String asImportList( Collection<Node> ns, String xsdPrefix ) {
+		File cwd = new File( "." );
+		URI cwdu = cwd.toURI();
+		
 		StringWriter sw = new StringWriter();
 		PrintWriter pw = new PrintWriter( sw );
 		for( Node n : ns ) {
+			String schemaLocation = "" + n.location;
+			URI uri = null;
+			try {
+				uri = n.location.toURI();
+			} catch( URISyntaxException never ) {
+			}
+			if( uri.getScheme().equals( "file" ) ) {
+				URI rel = cwdu.relativize( uri );
+				schemaLocation = "" + rel;
+			}
+			
 			// LOOK: printing xml by hand, pah! Use what?  A DOM?
 			pw.println( "  <" + xsdPrefix +
 						":import" +
 						" namespace=\"" + n.targetNamespace + "\"" +
-						" schemaLocation=\"" + n.location + "\"/>" );
+						" schemaLocation=\"" + schemaLocation + "\"/>" );
 		}
 		return sw.toString();
 	}
@@ -482,6 +501,7 @@ public class XSDWalker {
 		log.info( "Remotes : " + remotes.size() );
 		Collection<Node> prunedLeaves = pruneLeafNodes( leaves, remotes );
 		log.info( "PrunedLeaves : " + prunedLeaves.size() );
+
 		String imports = asImportList( prunedLeaves, xsdPrefix );
 
 		/*
